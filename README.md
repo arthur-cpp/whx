@@ -4,7 +4,9 @@ This repository provides a convenient wrapper script around WhisperX for fast tr
 
 The helper script prepares input media (audio extraction, resampling, and light loudness normalization) before invoking WhisperX.
 
-Upstream WhisperX project: [`m-bain/whisperX`](https://github.com/m-bain/whisperX)
+Upstream WhisperX project: [`m-bain/whisperX`](https://github.com/m-bain/whisperX).
+
+See [RATIONALE.md](RATIONALE.md) for the background and motivation behind this project.
 
 ## Features
 
