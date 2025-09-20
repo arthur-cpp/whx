@@ -21,7 +21,7 @@ Upstream WhisperX project: [`m-bain/whisperX`](https://github.com/m-bain/whisper
 ## Prerequisites
 
 - Debian 12 (bookworm) or compatible Linux
-- NVIDIA GPU with recent drivers (CUDA runtime from PyTorch wheels is used; no manual cuDNN installation needed)
+- NVIDIA GPU with recent drivers
 - `ffmpeg`
 - Python 3.10+
 
