@@ -89,6 +89,7 @@ trap cleanup EXIT
 SRC_FOR_PREP="$INPUT"
 
 # 1) Extract audio if input is video or unknown
+echo "Extracting audio from $INPUT.."
 if is_video_ext "$EXT_LOWER"; then
   ffmpeg -hide_banner -loglevel error -y -i "$INPUT" -vn -ac 2 -ar 48000 -c:a pcm_s16le "$RAW_WAV"
   SRC_FOR_PREP="$RAW_WAV"
@@ -98,13 +99,16 @@ elif ! is_audio_ext "$EXT_LOWER"; then
 fi
 
 # 2) Convert to mono 16 kHz 16-bit PCM
+echo "Converting to mono 16 kHz 16-bit PCM.."
 ffmpeg -hide_banner -loglevel error -y -i "$SRC_FOR_PREP" -ac 1 -ar 16000 -c:a pcm_s16le "$PREP_WAV"
 
 # 3) Light loudness normalization
+echo "Light loudness normalization.."
 ffmpeg -hide_banner -loglevel error -y -i "$PREP_WAV" -af "loudnorm" "$NORM_WAV"
 
 # 4) Run whisperx on normalized audio
 #    Show only progress lines (>>Performing ...)
+echo "Running $WHISPERX_BIN on $NORM_WAV.."
 "$WHISPERX_BIN" "$NORM_WAV" \
   --model large-v3 \
   --diarize \
@@ -114,8 +118,8 @@ ffmpeg -hide_banner -loglevel error -y -i "$PREP_WAV" -af "loudnorm" "$NORM_WAV"
   --verbose False \
   --print_progress True \
   --language "${WHX_LANGUAGE:-ru}" \
-  --hf_token="${HF_TOKEN:-}" \
-  2> >(awk '/^>>/ { print; fflush(); }' >&2)
+  --hf_token="${HF_TOKEN:-}"
+##  2> >(awk '/^>>/ { print; fflush(); }' >&2)
 
 # 5) Rename final transcript to match input name
 FINAL_TXT="${OUT_DIR}/${STEM}.txt"
