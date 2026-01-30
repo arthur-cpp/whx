@@ -253,15 +253,66 @@ def apply_speaker_mapping(json_data: dict, mapping: Dict[str, str]) -> dict:
     return json_data
 
 
-def generate_txt_output(json_data: dict, output_path: str):
+def build_speaker_header_mapping(original_mapping: Dict[str, str]) -> Dict[str, str]:
     """
-    Convert WhisperX JSON to TXT format with speaker labels.
+    Build speaker mapping for header display.
+
+    Takes the mapping from match_speakers() and enhances it for display:
+    - Matched speakers: "SPEAKER_00" -> "Arthur" (kept as-is)
+    - Unmatched speakers: "SPEAKER_03" -> "SPEAKER_03" becomes "SPEAKER_03" -> "[Not Matched]"
+    - Unknown speakers: "UNKNOWN" -> "UNKNOWN" becomes "UNKNOWN" -> "[Unknown Speaker]"
+
+    Args:
+        original_mapping: Mapping from match_speakers() (SPEAKER_XX -> name or SPEAKER_XX)
+
+    Returns:
+        Enhanced mapping for header display
+    """
+    header_mapping = {}
+
+    for original_label, final_name in original_mapping.items():
+        if original_label == "UNKNOWN":
+            header_mapping[original_label] = "[Unknown Speaker]"
+        elif original_label == final_name:
+            # No match found - label stayed the same
+            if original_label.startswith("SPEAKER_"):
+                header_mapping[original_label] = "[Not Matched]"
+            else:
+                # Edge case: non-SPEAKER label that stayed the same
+                header_mapping[original_label] = final_name
+        else:
+            # Successfully matched
+            header_mapping[original_label] = final_name
+
+    return header_mapping
+
+
+def generate_txt_output(json_data: dict, output_path: str, speaker_mapping: Optional[Dict[str, str]] = None):
+    """
+    Convert WhisperX JSON to TXT format with speaker labels and mapping header.
 
     Format:
+        ## Speaker Mapping:
+        - SPEAKER_00 → Arthur
+        - SPEAKER_01 → Valerian
+        - SPEAKER_03 → [Not Matched]
+
+        ---
+
         [MM:SS.ms] Speaker Name: Text here.
     """
     lines = []
 
+    # Generate speaker mapping header if mapping was provided
+    if speaker_mapping:
+        lines.append("## Speaker Mapping:")
+        for original_label, final_name in sorted(speaker_mapping.items()):
+            lines.append(f"- {original_label} → {final_name}")
+        lines.append("")  # Blank line
+        lines.append("---")
+        lines.append("")  # Blank line
+
+    # Generate transcript
     for segment in json_data.get("segments", []):
         start = segment.get("start", 0.0)
         text = segment.get("text", "").strip()
@@ -302,6 +353,9 @@ def main():
     with open(args.json, 'r', encoding='utf-8') as f:
         json_data = json.load(f)
 
+    # Track speaker mapping for header generation
+    speaker_mapping_for_header = None
+
     # Check if speaker matching is requested
     if args.speakers_dir and os.path.exists(args.speakers_dir):
         # Load profiles
@@ -320,7 +374,10 @@ def main():
                     args.hf_token
                 )
 
-                # Apply mapping
+                # Build header mapping from match results
+                speaker_mapping_for_header = build_speaker_header_mapping(mapping)
+
+                # Apply mapping to JSON
                 json_data = apply_speaker_mapping(json_data, mapping)
 
                 print(f"\nFinal mapping:")
@@ -329,13 +386,9 @@ def main():
             except Exception as e:
                 print(f"ERROR during speaker matching: {e}", file=sys.stderr)
                 print("Falling back to SPEAKER_XX labels", file=sys.stderr)
-        else:
-            print("No speaker profiles found, using SPEAKER_XX labels")
-    else:
-        print("Speaker matching disabled, using SPEAKER_XX labels")
 
-    # Generate TXT output
-    generate_txt_output(json_data, args.output_txt)
+    # Generate TXT output with speaker mapping header
+    generate_txt_output(json_data, args.output_txt, speaker_mapping_for_header)
 
 
 if __name__ == "__main__":
