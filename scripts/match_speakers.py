@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 try:
     import torch
+    from pyannote.core import Segment
 
     # Fix for PyTorch 2.6+ weights_only=True default
     # Since pyannote.audio models from HuggingFace are trusted, we use weights_only=False
@@ -121,16 +122,35 @@ def extract_embedding_for_speaker(audio_path: str, segments: List[Tuple[float, f
         try:
             # Extract embedding for this segment
             # pyannote Inference accepts file paths and can extract excerpts
-            excerpt = {"start": start, "end": end}
+            excerpt = Segment(start=start, end=end)
             embedding = model.crop(audio_path, excerpt)
 
-            # Convert to numpy if needed
-            if torch.is_tensor(embedding):
-                embedding = embedding.cpu().numpy()
-
-            # Average if multi-dimensional
-            if embedding.ndim > 1:
-                embedding = np.mean(embedding, axis=0)
+            # Handle different return types from pyannote.audio
+            # In newer versions (3.x), it returns SlidingWindowFeature wrapper
+            if hasattr(embedding, 'data'):
+                # SlidingWindowFeature object - extract the data array
+                embedding_data = embedding.data
+                if isinstance(embedding_data, np.ndarray):
+                    # Average across time dimension if multi-dimensional
+                    if embedding_data.ndim > 1:
+                        embedding = np.mean(embedding_data, axis=0)
+                    else:
+                        embedding = embedding_data
+                elif torch.is_tensor(embedding_data):
+                    if embedding_data.ndim > 1:
+                        embedding = torch.mean(embedding_data, dim=0).cpu().numpy()
+                    else:
+                        embedding = embedding_data.cpu().numpy()
+            elif isinstance(embedding, np.ndarray):
+                # Direct numpy array (older pyannote versions)
+                if embedding.ndim > 1:
+                    embedding = np.mean(embedding, axis=0)
+            elif torch.is_tensor(embedding):
+                # Direct torch tensor (older pyannote versions)
+                if embedding.ndim > 1:
+                    embedding = torch.mean(embedding, dim=0).cpu().numpy()
+                else:
+                    embedding = embedding.cpu().numpy()
 
             embeddings.append(embedding)
         except Exception as e:

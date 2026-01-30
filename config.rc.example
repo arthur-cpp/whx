@@ -2,5 +2,5 @@ export HF_TOKEN="hf_xxx"
 export WHX_LANGUAGE="ru"
 
 # Speaker Recognition Settings
-export WHX_ENABLE_SPEAKER_MATCHING="false"
+export WHX_ENABLE_SPEAKER_MATCHING="true"
 export WHX_SPEAKER_THRESHOLD="0.75"
