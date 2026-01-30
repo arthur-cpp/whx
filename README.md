@@ -15,6 +15,7 @@ See [RATIONALE.md](RATIONALE.md) for the background and motivation behind this p
   - resample to 16 kHz mono PCM
   - apply light loudness normalization
 - Call WhisperX CLI with sensible defaults
+- **Speaker Recognition**: Automatically match speaker labels (SPEAKER_00, SPEAKER_01) with known speaker profiles
 - Save the final transcript as a `.txt` file next to the input
 - Clean up temporary files automatically
 - Simple configuration via `config.rc`
@@ -40,7 +41,7 @@ cd whx
 The installer will:
 
 * create a Python virtual environment in `./venv`
-* install WhisperX into it
+* install WhisperX and pyannote.audio into it
 * copy `config.rc.example` to `config.rc` (for user customization)
 * add an alias `whx` to your `~/.bashrc`
 
@@ -59,10 +60,16 @@ All user-specific settings live in `config.rc`. An example file `config.rc.examp
 ```bash
 export HF_TOKEN="hf_xxx"
 export WHX_LANGUAGE="ru"
+
+# Speaker Recognition Settings
+export WHX_ENABLE_SPEAKER_MATCHING="false"
+export WHX_SPEAKER_THRESHOLD="0.75"
 ```
 
-* `HF_TOKEN`: your Hugging Face access token (required for diarization models).
+* `HF_TOKEN`: your Hugging Face access token (required for diarization and speaker recognition models).
 * `WHX_LANGUAGE`: default language passed to WhisperX.
+* `WHX_ENABLE_SPEAKER_MATCHING`: enable/disable automatic speaker name matching (default: `false`).
+* `WHX_SPEAKER_THRESHOLD`: cosine similarity threshold for speaker matching (default: `0.75`).
 
 Edit `config.rc` to set your values.
 
@@ -86,9 +93,10 @@ Steps performed:
    * `--language $WHX_LANGUAGE` (from `config.rc`)
    * `--diarize`
    * `--highlight_words True`
-   * `--output_format txt`
+   * `--output_format json`
    * output directory = same as input
-6. Move the produced `.txt` next to the input
+6. Speaker matching (if enabled) or convert JSON to TXT format
+7. Save final transcript next to the input
 
 ### Examples
 
@@ -105,6 +113,90 @@ Steps performed:
   whx ~/audio/interview.wav
   # -> produces ~/audio/interview.txt
   ```
+
+## Speaker Recognition
+
+WhisperX provides speaker diarization (labeling segments as SPEAKER_00, SPEAKER_01, etc.), but doesn't identify who those speakers are. This project adds **automatic speaker recognition** to match speaker labels with real names.
+
+### How It Works
+
+1. **Create speaker profiles** from audio samples (one-time setup)
+2. **Enable speaker matching** in config
+3. **Run transcription** as usual - speaker names are automatically applied
+
+### Creating Speaker Profiles
+
+Record or extract 10-60 seconds of clear speech from each person you want to recognize. Then create their profile:
+
+```bash
+speakers/learn sample_john.wav "John Doe"
+speakers/learn sample_jane.mp3 "Jane Smith"
+```
+
+This creates:
+- `speakers/data/john_doe.npy` - speaker embedding vector
+- `speakers/data/jane_smith.npy` - speaker embedding vector
+- `speakers/data/speakers.json` - metadata
+- `samples/sample_john.wav` - copy of audio sample (for portability)
+- `samples/sample_jane.mp3` - copy of audio sample (for portability)
+
+**Requirements for audio samples:**
+- Duration: 10-60 seconds of continuous speech
+- Quality: Clear voice, minimal background noise
+- Content: Natural speech (not singing or whispered)
+
+### Enabling Speaker Matching
+
+Edit `config.rc`:
+
+```bash
+export WHX_ENABLE_SPEAKER_MATCHING="true"
+export WHX_SPEAKER_THRESHOLD="0.75"  # adjust if needed (0.0-1.0)
+```
+
+Higher threshold = more strict matching (fewer false positives, more missed matches).
+
+### Using Speaker Recognition
+
+Once profiles are created and matching is enabled, just run transcription normally:
+
+```bash
+whx interview.mp4
+```
+
+The output will show real names instead of SPEAKER_XX:
+
+```
+[00:01.23] John Doe: Hello everyone.
+[00:05.67] Jane Smith: Hi John, how are you?
+[00:08.45] SPEAKER_02: Good morning.
+```
+
+**Note:** Unmatched speakers remain as SPEAKER_XX (either no profile exists, or similarity is below threshold).
+
+### Managing Speaker Profiles
+
+List all registered speakers:
+
+```bash
+speakers/list
+```
+
+Delete a speaker profile:
+
+```bash
+speakers/delete john_doe
+```
+
+### Speaker Recognition Requirements
+
+To use speaker recognition, you must:
+
+1. Visit https://huggingface.co/pyannote/embedding
+2. Accept the user agreement
+3. Use a HuggingFace token with read access in `config.rc`
+
+The `pyannote.audio` library is installed automatically by `./install.sh`.
 
 ## Troubleshooting
 

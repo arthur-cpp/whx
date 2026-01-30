@@ -38,9 +38,12 @@ source "$VENV_DIR/bin/activate"
 # Upgrade pip/setuptools/wheel
 python -m pip install --upgrade pip setuptools wheel
 
-# Install ONLY whisperx
+# Install whisperx and pyannote.audio
 echo "-> Installing whisperx"
 pip install whisperx
+
+echo "-> Installing pyannote.audio for speaker recognition"
+pip install pyannote.audio
 
 # Config
 if [[ -f "$CFG" ]]; then
@@ -52,6 +55,10 @@ else
   cat >"$CFG" <<'EOF'
 export HF_TOKEN="hf_xxx"
 export WHX_LANGUAGE="ru"
+
+# Speaker Recognition Settings
+export WHX_ENABLE_SPEAKER_MATCHING="false"
+export WHX_SPEAKER_THRESHOLD="0.75"
 EOF
   echo "-> Created default config.rc"
 fi

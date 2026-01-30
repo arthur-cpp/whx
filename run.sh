@@ -113,16 +113,49 @@ echo "Running $WHISPERX_BIN on $NORM_WAV.."
   --model large-v3 \
   --diarize \
   --highlight_words True \
-  --output_format txt \
+  --output_format json \
   --output_dir "$OUT_DIR" \
   --verbose False \
   --print_progress True \
   --language "${WHX_LANGUAGE:-ru}" \
   --hf_token="${HF_TOKEN:-}"
-##  2> >(awk '/^>>/ { print; fflush(); }' >&2)
 
-# 5) Rename final transcript to match input name
+# 5) Speaker matching and JSON -> TXT conversion
+JSON_OUTPUT="${OUT_DIR}/$(basename "$NORM_WAV" .wav).json"
 FINAL_TXT="${OUT_DIR}/${STEM}.txt"
-mv -f "${OUT_DIR}/$(basename "$NORM_WAV" .wav).txt" "$FINAL_TXT"
+ENABLE_SPEAKER_MATCHING="${WHX_ENABLE_SPEAKER_MATCHING:-false}"
+SPEAKER_DIR="$SCRIPT_DIR/speakers/data"
+
+if [ "$ENABLE_SPEAKER_MATCHING" = "true" ] && [ -d "$SPEAKER_DIR" ]; then
+  # Check if we have any speaker profiles
+  PROFILE_COUNT=$(find "$SPEAKER_DIR" -maxdepth 1 -name "*.npy" 2>/dev/null | wc -l)
+
+  if [ "$PROFILE_COUNT" -gt 0 ]; then
+    echo "Matching speakers with $PROFILE_COUNT profile(s)..."
+
+    "$VENV_DIR/bin/python" "$SCRIPT_DIR/scripts/match_speakers.py" \
+      --json "$JSON_OUTPUT" \
+      --audio "$NORM_WAV" \
+      --speakers_dir "$SPEAKER_DIR" \
+      --threshold "${WHX_SPEAKER_THRESHOLD:-0.75}" \
+      --output_txt "$FINAL_TXT" \
+      --hf_token "${HF_TOKEN:-}"
+
+    echo "Speaker matching complete."
+  else
+    echo "No speaker profiles found. Converting JSON to TXT..."
+    "$VENV_DIR/bin/python" "$SCRIPT_DIR/scripts/match_speakers.py" \
+      --json "$JSON_OUTPUT" \
+      --audio "$NORM_WAV" \
+      --output_txt "$FINAL_TXT"
+  fi
+else
+  # Speaker matching disabled or no speaker directory
+  echo "Converting JSON to TXT..."
+  "$VENV_DIR/bin/python" "$SCRIPT_DIR/scripts/match_speakers.py" \
+    --json "$JSON_OUTPUT" \
+    --audio "$NORM_WAV" \
+    --output_txt "$FINAL_TXT"
+fi
 
 echo "Final result: $FINAL_TXT"

@@ -1,2 +1,9 @@
 venv/
 config.rc
+
+# Speaker profiles
+speakers/data/*.npy
+speakers/data/speakers.json
+
+# Audio samples
+samples/
