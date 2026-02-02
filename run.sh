@@ -80,9 +80,10 @@ is_audio_ext() {
 RAW_WAV="$OUT_DIR/${STEM}_raw.wav"              # extracted from video if needed
 PREP_WAV="$OUT_DIR/${STEM}_16k_mono.wav"        # resampled mono 16k PCM
 NORM_WAV="$OUT_DIR/${STEM}_16k_mono_norm.wav"   # normalized audio
+JSON_OUTPUT=""                                  # json with speakers
 
 cleanup() {
-  rm -f "$RAW_WAV" "$PREP_WAV" "$NORM_WAV" || true
+  rm -f "$RAW_WAV" "$PREP_WAV" "$NORM_WAV" "$JSON_OUTPUT" || true
 }
 trap cleanup EXIT
 
