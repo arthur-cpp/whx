@@ -47,8 +47,6 @@ if ! command -v whisperx >/dev/null 2>&1; then
   exit 1
 fi
 
-
-
 # Output directory = input file directory
 OUT_DIR="$(dirname "$INPUT")"
 BASENAME="$(basename "$INPUT")"
@@ -84,6 +82,11 @@ JSON_OUTPUT=""                                  # json with speakers
 
 cleanup() {
   rm -f "$RAW_WAV" "$PREP_WAV" "$NORM_WAV" "$JSON_OUTPUT" || true
+
+  # remove annoying folder
+  if [ -d "$HOME/nltk_data" ]; then
+      rm -rf "$HOME/nltk_data"
+  fi
 }
 trap cleanup EXIT
 
