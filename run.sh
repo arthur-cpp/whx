@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 1. Paths and basic setup
+# Paths and basic setup
 SCRIPT_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/venv"
 SPEAKER_DIR="$SCRIPT_DIR/speakers/data"
 CONFIG_FILE="$SCRIPT_DIR/config.rc"
 
-# 2. Load external config FIRST to allow it to set environment variables
+# Load external config first to allow it to set environment variables
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck source=/dev/null
   source "$CONFIG_FILE"
 fi
 
-# 3. Initialize variables from environment (now they include values from config.rc)
-# Priority: CLI Flag > Environment > Config File > Default
+# Initialize variables from environment (now they include values from config.rc)
 ENABLE_SPEAKER_MATCHING="${WHX_ENABLE_SPEAKER_MATCHING:-false}"
 WHX_LANGUAGE="${WHX_LANGUAGE:-ru}"
 WHX_SPEAKER_THRESHOLD="${WHX_SPEAKER_THRESHOLD:-0.75}"
 
-# 4. Command line argument parsing (Highest priority)
+# Command line argument parsing
 POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -54,7 +53,7 @@ fi
 
 INPUT="$1"
 
-# 5. Environment and binary checks
+# Environment and binary checks
 if [ -x "$VENV_DIR/bin/whisperx" ]; then
   WHISPERX_BIN="$VENV_DIR/bin/whisperx"
 else
@@ -76,15 +75,13 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
-# 6. Path preparation
+# Path preparation
 OUT_DIR="$(dirname "$INPUT")"
 BASENAME="$(basename "$INPUT")"
 STEM="${BASENAME%.*}"
 EXT="${BASENAME##*.}"
 EXT_LOWER="${EXT,,}"
 
-RAW_WAV="$OUT_DIR/${STEM}_raw.wav"
-PREP_WAV="$OUT_DIR/${STEM}_16k_mono.wav"
 NORM_WAV="$OUT_DIR/${STEM}_16k_mono_norm.wav"
 
 # Suppress logs
@@ -107,30 +104,22 @@ is_audio_ext() {
 }
 
 cleanup() {
-  rm -f "$RAW_WAV" "$PREP_WAV" "$NORM_WAV" || true
+  rm -f "$NORM_WAV" || true
   if [ -d "$HOME/nltk_data" ]; then
       rm -rf "$HOME/nltk_data"
   fi
 }
 trap cleanup EXIT
 
-# 7. Audio processing
-SRC_FOR_PREP="$INPUT"
+# Audio processing
+echo "Extracting, converting and normalizing audio..."
+ffmpeg -hide_banner -loglevel error -y -i "$INPUT" \
+  -vn -ac 1 -ar 16000 -c:a pcm_s16le \
+  -af "loudnorm=I=-16:LRA=11:TP=-1.5" \
+  "$NORM_WAV"
 
-echo "1/4 Extracting audio..."
-if is_video_ext "$EXT_LOWER" || ! is_audio_ext "$EXT_LOWER"; then
-  ffmpeg -hide_banner -loglevel error -y -i "$INPUT" -vn -ac 2 -ar 48000 -c:a pcm_s16le "$RAW_WAV"
-  SRC_FOR_PREP="$RAW_WAV"
-fi
-
-echo "2/4 Converting..."
-ffmpeg -hide_banner -loglevel error -y -i "$SRC_FOR_PREP" -ac 1 -ar 16000 -c:a pcm_s16le "$PREP_WAV"
-
-echo "3/4 Normalizing..."
-ffmpeg -hide_banner -loglevel error -y -i "$PREP_WAV" -af "loudnorm" "$NORM_WAV"
-
-# 8. Run WhisperX
-echo "4/4 Running WhisperX (Language: $WHX_LANGUAGE)..."
+# Run WhisperX
+echo "Running WhisperX (Language: $WHX_LANGUAGE)..."
 "$WHISPERX_BIN" "$NORM_WAV" \
   --model large-v3 \
   --diarize \
@@ -142,7 +131,7 @@ echo "4/4 Running WhisperX (Language: $WHX_LANGUAGE)..."
   --language "$WHX_LANGUAGE" \
   --hf_token "${HF_TOKEN:-}"
 
-# 9. Speaker Matching and TXT generation
+# Speaker Matching and TXT generation
 JSON_OUTPUT="${OUT_DIR}/$(basename "$NORM_WAV" .wav).json"
 FINAL_TXT="${OUT_DIR}/${STEM}.txt"
 
