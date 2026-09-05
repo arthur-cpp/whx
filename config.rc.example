@@ -3,4 +3,4 @@ export WHX_LANGUAGE="ru"
 
 # Speaker Recognition Settings
 export WHX_ENABLE_SPEAKER_MATCHING="true"
-export WHX_SPEAKER_THRESHOLD="0.75"
+export WHX_SPEAKER_THRESHOLD="0.555"
